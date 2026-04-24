@@ -1,26 +1,267 @@
-<!doctype html>
-<html lang="zh-TW">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>手機維修管理系統</title>
-    <meta name="description" content="手機維修店客戶管理系統 — 維修記錄、利潤追蹤、快速查詢" />
-    <meta name="author" content="Repair Shop" />
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Plus, Search, Filter, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { supabase } from "@/integrations/supabase/client";
+import * as XLSX from "xlsx";
 
-    <meta property="og:title" content="手機維修管理系統" />
-    <meta property="og:description" content="手機維修店客戶管理系統" />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+import {
+BRANDS, STATUSES, Repair, Status, Brand, formatCurrency, calcProfit,
+BRAND_LABELS, STATUS_LABELS,
+} from "@/lib/repairs";
 
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@Lovable" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
-  </head>
+import { StatusBadge } from "@/components/StatusBadge";
+import { AppHeader } from "@/components/AppHeader";
+import { toast } from "sonner";
 
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+const Index = () => {
+const navigate = useNavigate();
+const [repairs, setRepairs] = useState<Repair[]>([]);
+const [loading, setLoading] = useState(true);
+const [q, setQ] = useState("");
+const [brand, setBrand] = useState<Brand | "all">("all");
+const [status, setStatus] = useState<Status | "all">("all");
+const [from, setFrom] = useState("");
+const [to, setTo] = useState("");
+
+const load = async () => {
+setLoading(true);
+const { data, error } = await supabase
+.from("repairs")
+.select("*")
+.eq("is_deleted", false)
+.order("repair_date", { ascending: false })
+.order("created_at", { ascending: false });
+
+```
+if (error) toast.error(error.message);
+else setRepairs((data ?? []) as Repair[]);
+
+setLoading(false);
+```
+
+};
+
+useEffect(() => { load(); }, []);
+
+const filtered = useMemo(() => {
+const term = q.trim().toLowerCase();
+return repairs.filter((r) => {
+if (brand !== "all" && r.brand !== brand) return false;
+if (status !== "all" && r.status !== status) return false;
+if (from && r.repair_date < from) return false;
+if (to && r.repair_date > to) return false;
+
+```
+  if (term) {
+    const hay = `${r.customer_name} ${r.phone} ${r.repair_item} ${r.model ?? ""}`.toLowerCase();
+    if (!hay.includes(term)) return false;
+  }
+  return true;
+});
+```
+
+}, [repairs, q, brand, status, from, to]);
+
+const stats = useMemo(() => {
+const totalProfit = filtered.reduce(
+(s, r) => s + calcProfit(Number(r.price), Number(r.cost)),
+0
+);
+return { count: filtered.length, totalProfit };
+}, [filtered]);
+
+const clearFilters = () => {
+setBrand("all");
+setStatus("all");
+setFrom("");
+setTo("");
+};
+
+// 📤 匯出
+const exportToExcel = () => {
+const data = filtered.map((r) => ({
+客戶名稱: r.customer_name,
+電話: r.phone,
+品牌: BRAND_LABELS[r.brand],
+型號: r.model,
+維修項目: r.repair_item,
+維修日期: r.repair_date,
+狀態: STATUS_LABELS[r.status],
+售價: Number(r.price),
+成本: Number(r.cost),
+利潤: Number(r.price) - Number(r.cost),
+}));
+
+```
+const ws = XLSX.utils.json_to_sheet(data);
+const wb = XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(wb, ws, "維修資料");
+XLSX.writeFile(wb, "維修資料.xlsx");
+```
+
+};
+
+// 📥 匯入
+const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+const file = e.target.files?.[0];
+if (!file) return;
+
+```
+const data = await file.arrayBuffer();
+const workbook = XLSX.read(data);
+const sheet = workbook.Sheets[workbook.SheetNames[0]];
+const json: any[] = XLSX.utils.sheet_to_json(sheet);
+
+const newData = json.map((row) => ({
+  customer_name: row["客戶名稱"] || "",
+  phone: row["電話"] || "",
+  brand: "other",
+  model: row["型號"] || "",
+  repair_item: row["維修項目"] || "",
+  repair_date: row["維修日期"] || "",
+  status: "pending",
+  price: Number(row["售價"] || 0),
+  cost: Number(row["成本"] || 0),
+  is_deleted: false,
+}));
+
+const { error } = await supabase.from("repairs").insert(newData);
+
+if (error) {
+  toast.error("匯入失敗：" + error.message);
+} else {
+  toast.success("匯入成功");
+  load();
+}
+```
+
+};
+
+return ( <div className="min-h-screen bg-background pb-24">
+<AppHeader
+title="維修記錄"
+right={ <Link to="/repairs/new"> <Button size="sm"> <Plus className="h-4 w-4 mr-1" />新增 </Button> </Link>
+}
+/>
+
+```
+  <main className="mx-auto max-w-3xl px-4 py-4 space-y-4">
+
+    {/* 🔍 搜尋 + 匯入匯出 */}
+    <div className="flex gap-2 flex-wrap">
+      <div className="relative flex-1">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="搜尋姓名、電話、項目…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          className="pl-9 h-11"
+        />
+      </div>
+
+      <Button variant="outline" onClick={exportToExcel}>
+        匯出
+      </Button>
+
+      <label className="h-11 px-4 border rounded-md flex items-center cursor-pointer text-sm">
+        匯入
+        <input
+          type="file"
+          accept=".xlsx, .xls"
+          onChange={handleImport}
+          className="hidden"
+        />
+      </label>
+
+      <Sheet>
+        <SheetTrigger asChild>
+          <Button variant="outline" size="icon" className="h-11 w-11">
+            <Filter className="h-4 w-4" />
+          </Button>
+        </SheetTrigger>
+
+        <SheetContent side="bottom">
+          <SheetHeader>
+            <SheetTitle>篩選</SheetTitle>
+          </SheetHeader>
+
+          <div className="space-y-4 py-4">
+
+            <Select value={brand} onValueChange={(v) => setBrand(v as any)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部品牌</SelectItem>
+                {BRANDS.map((b) => (
+                  <SelectItem key={b} value={b}>{BRAND_LABELS[b]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={status} onValueChange={(v) => setStatus(v as any)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部狀態</SelectItem>
+                {STATUSES.map((s) => (
+                  <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button variant="outline" onClick={clearFilters}>
+              <X className="h-4 w-4 mr-1" />清除
+            </Button>
+
+          </div>
+        </SheetContent>
+      </Sheet>
+    </div>
+
+    {/* 📊 統計 */}
+    <div className="grid grid-cols-2 gap-3">
+      <div className="rounded-xl border p-3">
+        <div className="text-xs">筆數</div>
+        <div className="text-xl">{stats.count}</div>
+      </div>
+      <div className="rounded-xl border p-3">
+        <div className="text-xs">總利潤</div>
+        <div className="text-xl">{formatCurrency(stats.totalProfit)}</div>
+      </div>
+    </div>
+
+    {/* 📋 列表 */}
+    {filtered.map((r) => {
+      const profit = calcProfit(Number(r.price), Number(r.cost));
+
+      return (
+        <div
+          key={r.id}
+          onClick={() => navigate(`/repairs/${r.id}`)}
+          className="border rounded-xl p-4 cursor-pointer"
+        >
+          <div className="flex justify-between">
+            <div>
+              <div className="font-bold">{r.customer_name}</div>
+              <div className="text-sm">{r.phone}</div>
+              <div className="text-sm">{r.repair_item}</div>
+            </div>
+
+            <div className="text-right">
+              <div>{formatCurrency(Number(r.price))}</div>
+              <div>{formatCurrency(profit)}</div>
+            </div>
+          </div>
+        </div>
+      );
+    })}
+  </main>
+</div>
+```
+
+);
+};
+
+export default Index;
