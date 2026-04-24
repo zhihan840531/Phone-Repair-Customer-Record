@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, Search, Filter, X } from "lucide-react";
+import { Download, FileSpreadsheet, Filter, Plus, Search, Upload, X } from "lucide-react";
+import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,11 +14,45 @@ import {
 import { StatusBadge } from "@/components/StatusBadge";
 import { AppHeader } from "@/components/AppHeader";
 import { toast } from "sonner";
+type ImportRow = Partial<Repair> & {
+  customer_name?: string;
+  phone?: string;
+  repair_item?: string;
+  repair_date?: string;
+};
+
+const REQUIRED_FIELDS = ["customer_name", "phone", "repair_item", "repair_date", "brand", "status", "price", "cost"];
+
+const normalizeImportRows = (rows: ImportRow[]) => {
+  const validBrands = new Set(BRANDS);
+  const validStatuses = new Set(STATUSES);
+
+  return rows
+    .map((row) => {
+      const brand = String(row.brand ?? "").toLowerCase() as Brand;
+      const status = String(row.status ?? "").toLowerCase() as Status;
+      return {
+        customer_name: String(row.customer_name ?? "").trim(),
+        phone: String(row.phone ?? "").trim(),
+        repair_item: String(row.repair_item ?? "").trim(),
+        repair_date: String(row.repair_date ?? "").trim(),
+        brand: validBrands.has(brand) ? brand : undefined,
+        status: validStatuses.has(status) ? status : undefined,
+        model: String(row.model ?? "").trim() || null,
+        imei: String(row.imei ?? "").trim() || null,
+        notes: String(row.notes ?? "").trim() || null,
+        price: Number(row.price ?? 0),
+        cost: Number(row.cost ?? 0),
+      };
+    })
+    .filter((row) => REQUIRED_FIELDS.every((field) => row[field as keyof typeof row] !== undefined && row[field as keyof typeof row] !== ""));
+};
 
 const Index = () => {
   const navigate = useNavigate();
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
   const [q, setQ] = useState("");
   const [brand, setBrand] = useState<Brand | "all">("all");
   const [status, setStatus] = useState<Status | "all">("all");
@@ -59,6 +94,59 @@ const Index = () => {
     return { count: filtered.length, totalProfit };
   }, [filtered]);
 
+         const exportExcel = () => {
+    const rows = filtered.map((r) => ({
+      customer_name: r.customer_name,
+      phone: r.phone,
+      brand: r.brand,
+      model: r.model,
+      repair_item: r.repair_item,
+      imei: r.imei,
+      status: r.status,
+      repair_date: r.repair_date,
+      price: Number(r.price),
+      cost: Number(r.cost),
+      notes: r.notes,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Repairs");
+    XLSX.writeFile(wb, `repairs-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    toast.success(`已匯出 ${rows.length} 筆資料`);
+  };
+
+  const importExcel = async (file?: File) => {
+    if (!file) return;
+    setImporting(true);
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rawRows = XLSX.utils.sheet_to_json<ImportRow>(ws, { defval: "" });
+      const rows = normalizeImportRows(rawRows);
+
+      if (rows.length === 0) {
+        toast.error("匯入失敗：找不到有效資料，請確認欄位名稱與格式");
+        return;
+      }
+
+      const { error } = await supabase.from("repairs").insert(rows);
+      if (error) {
+        toast.error(`匯入失敗：${error.message}`);
+        return;
+      }
+
+      toast.success(`成功匯入 ${rows.length} 筆資料`);
+      await load();
+    } catch {
+      toast.error("匯入失敗：檔案讀取錯誤，請確認 Excel 格式是否正確");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const activeFilters = (brand !== "all" ? 1 : 0) + (status !== "all" ? 1 : 0) + (from ? 1 : 0) + (to ? 1 : 0);
 
   const clearFilters = () => { setBrand("all"); setStatus("all"); setFrom(""); setTo(""); };
@@ -68,9 +156,29 @@ const Index = () => {
       <AppHeader
         title="維修記錄"
         right={
-          <Link to="/repairs/new">
-            <Button size="sm" className="h-9"><Plus className="h-4 w-4 mr-1" />新增</Button>
-          </Link>
+           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="h-9" onClick={exportExcel}>
+              <Download className="h-4 w-4 mr-1" />匯出
+            </Button>
+
+            <label className="inline-flex">
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={(e) => importExcel(e.target.files?.[0])}
+                disabled={importing}
+              />
+              <span className="inline-flex items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium h-9 cursor-pointer hover:bg-accent hover:text-accent-foreground">
+                {importing ? <FileSpreadsheet className="h-4 w-4 mr-1 animate-pulse" /> : <Upload className="h-4 w-4 mr-1" />}
+                {importing ? "匯入中" : "匯入"}
+              </span>
+            </label>
+
+            <Link to="/repairs/new">
+              <Button size="sm" className="h-9"><Plus className="h-4 w-4 mr-1" />新增</Button>
+            </Link>
+          </div>
         }
       />
 
