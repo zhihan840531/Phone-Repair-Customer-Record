@@ -1,212 +1,280 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Plus, Search, Filter, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { supabase } from "@/integrations/supabase/client";
-import {
-  BRANDS, STATUSES, Repair, Status, Brand, formatCurrency, calcProfit,
-  BRAND_LABELS, STATUS_LABELS,
-} from "@/lib/repairs";
-import { StatusBadge } from "@/components/StatusBadge";
-import { AppHeader } from "@/components/AppHeader";
-import { toast } from "sonner";
-
-const Index = () => {
-  const navigate = useNavigate();
-  const [repairs, setRepairs] = useState<Repair[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [q, setQ] = useState("");
-  const [brand, setBrand] = useState<Brand | "all">("all");
-  const [status, setStatus] = useState<Status | "all">("all");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-
-  const load = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("repairs")
-      .select("*")
-      .eq("is_deleted", false)
-      .order("repair_date", { ascending: false })
-      .order("created_at", { ascending: false });
-    if (error) toast.error(error.message);
-    else setRepairs((data ?? []) as Repair[]);
-    setLoading(false);
-  };
-
-  useEffect(() => { load(); }, []);
-
-  const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    return repairs.filter((r) => {
-      if (brand !== "all" && r.brand !== brand) return false;
-      if (status !== "all" && r.status !== status) return false;
-      if (from && r.repair_date < from) return false;
-      if (to && r.repair_date > to) return false;
-      if (term) {
-        const hay = `${r.customer_name} ${r.phone} ${r.repair_item} ${r.model ?? ""} ${r.imei ?? ""}`.toLowerCase();
-        if (!hay.includes(term)) return false;
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>手機維修客戶紀錄</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <style>
+      :root { font-family: "Noto Sans TC", system-ui, sans-serif; }
+      body { margin: 0; background: #f5f7fb; color: #1f2937; }
+      .container { max-width: 1080px; margin: 0 auto; padding: 24px 16px 48px; }
+      .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+      h1 { margin: 0 0 12px; font-size: 24px; }
+      .toolbar, .grid { display: grid; gap: 10px; }
+      .toolbar { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); align-items: end; }
+      .grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+      label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #4b5563; }
+      input, select, button, textarea {
+        border: 1px solid #d1d5db; border-radius: 8px; padding: 10px; font-size: 14px; background: #fff;
       }
-      return true;
-    });
-  }, [repairs, q, brand, status, from, to]);
+      button { cursor: pointer; background: #2563eb; color: #fff; border-color: #2563eb; }
+      button.secondary { background: #fff; color: #111827; }
+      button:disabled { opacity: .6; cursor: not-allowed; }
+      .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+      .status { font-size: 13px; color: #374151; margin-top: 8px; min-height: 20px; }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      th, td { border-bottom: 1px solid #e5e7eb; padding: 8px; text-align: left; vertical-align: top; }
+      th { background: #f9fafb; position: sticky; top: 0; }
+      .table-wrap { max-height: 480px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; }
+      .muted { color: #6b7280; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <section class="card">
+        <h1>手機維修客戶紀錄</h1>
+        <div class="toolbar">
+          <label>
+            搜尋
+            <input id="search" placeholder="姓名、電話、品牌、型號" />
+          </label>
+          <label>
+            維修日期起
+            <input id="fromDate" type="date" />
+          </label>
+          <label>
+            維修日期迄
+            <input id="toDate" type="date" />
+          </label>
+          <div class="actions">
+            <button id="btnExport" type="button">匯出 Excel</button>
+            <label class="secondary" style="justify-content:center; cursor:pointer; border:1px solid #d1d5db; border-radius:8px; padding:10px;">
+              匯入 Excel
+              <input id="importFile" type="file" accept=".xlsx,.xls" style="display:none" />
+            </label>
+            <button id="btnClear" class="secondary" type="button">清除篩選</button>
+          </div>
+        </div>
+        <div class="status" id="status"></div>
+        <p class="muted">匯入欄位可用：customer_name / phone / brand / model / repair_item / imei / status / repair_date / price / cost / notes。也支援中文欄名。</p>
+      </section>
 
-  const stats = useMemo(() => {
-    const totalProfit = filtered.reduce((s, r) => s + calcProfit(Number(r.price), Number(r.cost)), 0);
-    return { count: filtered.length, totalProfit };
-  }, [filtered]);
+      <section class="card">
+        <h2 style="margin-top:0">新增客戶維修資料</h2>
+        <form id="formAdd">
+          <div class="grid">
+            <label>客戶姓名<input name="customer_name" required /></label>
+            <label>電話<input name="phone" required /></label>
+            <label>品牌<input name="brand" value="apple" /></label>
+            <label>型號<input name="model" /></label>
+            <label>維修項目<input name="repair_item" required /></label>
+            <label>IMEI<input name="imei" /></label>
+            <label>狀態<input name="status" value="received" /></label>
+            <label>維修日期<input name="repair_date" type="date" required /></label>
+            <label>收費<input name="price" type="number" step="0.01" value="0" /></label>
+            <label>成本<input name="cost" type="number" step="0.01" value="0" /></label>
+          </div>
+          <label style="margin-top:10px">備註<textarea name="notes" rows="2"></textarea></label>
+          <div style="margin-top:10px" class="actions">
+            <button type="submit">新增資料</button>
+          </div>
+        </form>
+      </section>
 
-  const activeFilters = (brand !== "all" ? 1 : 0) + (status !== "all" ? 1 : 0) + (from ? 1 : 0) + (to ? 1 : 0);
+      <section class="card">
+        <h2 style="margin-top:0">資料列表（<span id="count">0</span> 筆）</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>姓名</th><th>電話</th><th>品牌</th><th>型號</th><th>維修項目</th><th>IMEI</th><th>狀態</th><th>日期</th><th>收費</th><th>成本</th><th>備註</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
 
-  const clearFilters = () => { setBrand("all"); setStatus("all"); setFrom(""); setTo(""); };
+    <script>
+      const STORAGE_KEY = "repair_records_v1";
+      const state = {
+        rows: JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"),
+        filtered: []
+      };
 
-  return (
-    <div className="min-h-screen bg-background pb-24">
-      <AppHeader
-        title="維修記錄"
-        right={
-          <Link to="/repairs/new">
-            <Button size="sm" className="h-9"><Plus className="h-4 w-4 mr-1" />新增</Button>
-          </Link>
+      const els = {
+        search: document.getElementById("search"),
+        fromDate: document.getElementById("fromDate"),
+        toDate: document.getElementById("toDate"),
+        btnExport: document.getElementById("btnExport"),
+        btnClear: document.getElementById("btnClear"),
+        importFile: document.getElementById("importFile"),
+        status: document.getElementById("status"),
+        formAdd: document.getElementById("formAdd"),
+        tbody: document.getElementById("tbody"),
+        count: document.getElementById("count")
+      };
+
+      const headerAlias = {
+        customer_name: ["customer_name", "姓名", "客戶姓名"],
+        phone: ["phone", "電話", "手機"],
+        brand: ["brand", "品牌"],
+        model: ["model", "型號"],
+        repair_item: ["repair_item", "維修項目", "項目"],
+        imei: ["imei", "IMEI"],
+        status: ["status", "狀態"],
+        repair_date: ["repair_date", "日期", "維修日期"],
+        price: ["price", "收費", "價格"],
+        cost: ["cost", "成本"],
+        notes: ["notes", "備註"]
+      };
+
+      const requiredFields = ["customer_name", "phone", "repair_item", "repair_date"];
+
+      const setStatus = (msg, isError = false) => {
+        els.status.textContent = msg;
+        els.status.style.color = isError ? "#b91c1c" : "#065f46";
+      };
+
+      const persist = () => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state.rows));
+      };
+
+      const mapRow = (row) => {
+        const out = {};
+        for (const key of Object.keys(headerAlias)) {
+          const aliases = headerAlias[key];
+          const hit = aliases.find((name) => row[name] !== undefined && row[name] !== null && row[name] !== "");
+          out[key] = hit ? String(row[hit]).trim() : "";
         }
-      />
 
-      <main className="mx-auto max-w-3xl px-4 py-4 space-y-4">
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="搜尋姓名、電話、項目…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              className="pl-9 h-11"
-            />
-          </div>
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="h-11 w-11 relative">
-                <Filter className="h-4 w-4" />
-                {activeFilters > 0 && (
-                  <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center">
-                    {activeFilters}
-                  </span>
-                )}
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="bottom" className="rounded-t-2xl">
-              <SheetHeader><SheetTitle>篩選</SheetTitle></SheetHeader>
-              <div className="space-y-4 py-4">
-                <div>
-                  <label className="text-sm font-medium">品牌</label>
-                  <Select value={brand} onValueChange={(v) => setBrand(v as Brand | "all")}>
-                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部品牌</SelectItem>
-                      {BRANDS.map((b) => <SelectItem key={b} value={b}>{BRAND_LABELS[b]}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium">狀態</label>
-                  <Select value={status} onValueChange={(v) => setStatus(v as Status | "all")}>
-                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部狀態</SelectItem>
-                      {STATUSES.map((s) => <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-sm font-medium">起始日期</label>
-                    <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-1.5" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">結束日期</label>
-                    <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="mt-1.5" />
-                  </div>
-                </div>
-                <Button variant="outline" className="w-full" onClick={clearFilters}>
-                  <X className="h-4 w-4 mr-1" />清除篩選
-                </Button>
-              </div>
-            </SheetContent>
-          </Sheet>
-        </div>
+        out.price = Number(out.price || 0);
+        out.cost = Number(out.cost || 0);
+        return out;
+      };
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl border bg-card p-3">
-            <div className="text-xs text-muted-foreground">筆數</div>
-            <div className="text-xl font-semibold">{stats.count}</div>
-          </div>
-          <div className="rounded-xl border bg-card p-3">
-            <div className="text-xs text-muted-foreground">總利潤</div>
-            <div className={`text-xl font-semibold ${stats.totalProfit >= 0 ? "text-[hsl(var(--profit-positive))]" : "text-[hsl(var(--profit-negative))]"}`}>
-              {formatCurrency(stats.totalProfit)}
-            </div>
-          </div>
-        </div>
+      const isValid = (row) => requiredFields.every((f) => String(row[f] || "").trim() !== "");
 
-        {loading ? (
-          <div className="py-16 text-center text-muted-foreground">載入中…</div>
-        ) : filtered.length === 0 ? (
-          <div className="py-16 text-center space-y-3">
-            <div className="text-muted-foreground">尚無維修記錄</div>
-            <Link to="/repairs/new">
-              <Button><Plus className="h-4 w-4 mr-1" />新增第一筆記錄</Button>
-            </Link>
-          </div>
-        ) : (
-          <ul className="space-y-2">
-            {filtered.map((r) => {
-              const profit = calcProfit(Number(r.price), Number(r.cost));
-              return (
-                <li key={r.id}>
-                  <button
-                    onClick={() => navigate(`/repairs/${r.id}`)}
-                    className="w-full text-left rounded-xl border bg-card p-4 hover:border-primary/50 transition active:scale-[0.99]"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold truncate">{r.customer_name}</span>
-                          <span className="text-xs text-muted-foreground shrink-0">{r.phone}</span>
-                        </div>
-                        <div className="mt-0.5 text-sm text-muted-foreground truncate">
-                          {BRAND_LABELS[r.brand]}{r.model ? ` · ${r.model}` : ""} · {r.repair_item}
-                        </div>
-                        <div className="mt-2 flex items-center gap-2 text-xs">
-                          <StatusBadge status={r.status} />
-                          <span className="text-muted-foreground">{r.repair_date}</span>
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-sm font-semibold">{formatCurrency(Number(r.price))}</div>
-                        <div className={`text-xs ${profit >= 0 ? "text-[hsl(var(--profit-positive))]" : "text-[hsl(var(--profit-negative))]"}`}>
-                          {profit >= 0 ? "+" : ""}{formatCurrency(profit)}
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </main>
+      const applyFilter = () => {
+        const q = els.search.value.trim().toLowerCase();
+        const from = els.fromDate.value;
+        const to = els.toDate.value;
 
-      <Link
-        to="/repairs/new"
-        aria-label="新增維修"
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 active:scale-95 transition"
-      >
-        <Plus className="h-6 w-6" />
-      </Link>
-    </div>
-  );
-};
+        state.filtered = state.rows.filter((r) => {
+          if (from && r.repair_date < from) return false;
+          if (to && r.repair_date > to) return false;
+          if (!q) return true;
+          const hay = `${r.customer_name} ${r.phone} ${r.brand} ${r.model} ${r.repair_item}`.toLowerCase();
+          return hay.includes(q);
+        });
+      };
 
-export default Index;
+      const render = () => {
+        applyFilter();
+        els.count.textContent = state.filtered.length;
+        els.tbody.innerHTML = state.filtered.map((r) => `
+          <tr>
+            <td>${escapeHtml(r.customer_name)}</td>
+            <td>${escapeHtml(r.phone)}</td>
+            <td>${escapeHtml(r.brand)}</td>
+            <td>${escapeHtml(r.model)}</td>
+            <td>${escapeHtml(r.repair_item)}</td>
+            <td>${escapeHtml(r.imei)}</td>
+            <td>${escapeHtml(r.status)}</td>
+            <td>${escapeHtml(r.repair_date)}</td>
+            <td>${Number(r.price || 0)}</td>
+            <td>${Number(r.cost || 0)}</td>
+            <td>${escapeHtml(r.notes)}</td>
+          </tr>
+        `).join("");
+      };
+
+      function escapeHtml(s) {
+        return String(s ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
+      els.formAdd.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const data = new FormData(els.formAdd);
+        const row = Object.fromEntries(data.entries());
+        row.price = Number(row.price || 0);
+        row.cost = Number(row.cost || 0);
+
+        if (!isValid(row)) {
+          setStatus("新增失敗：請至少填寫姓名、電話、維修項目、維修日期。", true);
+          return;
+        }
+
+        state.rows.unshift(row);
+        persist();
+        els.formAdd.reset();
+        render();
+        setStatus("已新增 1 筆資料。", false);
+      });
+
+      [els.search, els.fromDate, els.toDate].forEach((el) => {
+        el.addEventListener("input", render);
+      });
+
+      els.btnClear.addEventListener("click", () => {
+        els.search.value = "";
+        els.fromDate.value = "";
+        els.toDate.value = "";
+        render();
+        setStatus("已清除篩選。", false);
+      });
+
+      els.btnExport.addEventListener("click", () => {
+        applyFilter();
+        if (!state.filtered.length) {
+          setStatus("沒有可匯出的資料。", true);
+          return;
+        }
+
+        const ws = XLSX.utils.json_to_sheet(state.filtered);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Repairs");
+        XLSX.writeFile(wb, `repairs-${new Date().toISOString().slice(0, 10)}.xlsx`);
+        setStatus(`已匯出 ${state.filtered.length} 筆資料。`, false);
+      });
+
+      els.importFile.addEventListener("change", async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+          const buffer = await file.arrayBuffer();
+          const wb = XLSX.read(buffer, { type: "array" });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const rawRows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+          const mapped = rawRows.map(mapRow).filter(isValid);
+
+          if (!mapped.length) {
+            setStatus("匯入失敗：沒有符合格式的資料。", true);
+            return;
+          }
+
+          state.rows = [...mapped, ...state.rows];
+          persist();
+          render();
+          setStatus(`匯入成功：${mapped.length} 筆。`, false);
+        } catch (err) {
+          console.error(err);
+          setStatus("匯入失敗：請確認 Excel 檔案格式。", true);
+        } finally {
+          els.importFile.value = "";
+        }
+      });
+
+      render();
+      setStatus("系統已就緒，可直接新增、匯入、匯出。", false);
+    </script>
+  </body>
+</html>
