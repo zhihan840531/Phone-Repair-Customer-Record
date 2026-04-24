@@ -1,396 +1,556 @@
-<!doctype html>
-<html lang="zh-Hant">
+<!DOCTYPE html>
+<html lang="zh-TW">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Phone Repair Customer Record</title>
-  <style>
-    :root {
-      color-scheme: light;
-      --bg: #f6f7fb;
-      --card: #fff;
-      --text: #1f2937;
-      --muted: #6b7280;
-      --brand: #2563eb;
-      --brand-dark: #1e40af;
-      --border: #e5e7eb;
-      --ok: #16a34a;
-      --warn: #d97706;
-      --danger: #dc2626;
-    }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>維修管理系統｜試用版</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg:      #f5f3ef;
+  --surface: #ffffff;
+  --surface2:#eeebe5;
+  --border:  #dedad3;
+  --text:    #1c1a17;
+  --text2:   #6b6560;
+  --text3:   #a09a93;
+  --accent:  #c47f2e;
+  --accent2: #a86a20;
+  --accent-bg:#fdf4e7;
+  --red:     #c0392b;
+  --green:   #27a469;
+  --r: 10px;
+  --rs: 7px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Noto Sans TC','PingFang TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:15px;}
 
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
-      color: var(--text);
-      background: var(--bg);
-    }
+/* ── header ── */
+header{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  height:56px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 1rem;position:sticky;top:0;z-index:100;
+}
+.logo{font-size:1rem;font-weight:800;letter-spacing:-.3px;display:flex;align-items:center;gap:.5rem;}
+.logo-icon{width:28px;height:28px;background:var(--accent);border-radius:7px;display:flex;align-items:center;justify-content:center;}
+.logo-icon svg{width:16px;height:16px;fill:none;stroke:#fff;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;}
+.trial-badge{font-size:.7rem;background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent);border-radius:99px;padding:2px 8px;font-weight:700;}
 
-    .container {
-      width: min(980px, 94vw);
-      margin: 24px auto;
-    }
+/* ── main ── */
+main{max-width:720px;margin:0 auto;padding:1rem 1rem 6rem;}
 
-    h1 {
-      margin: 0 0 6px;
-      font-size: 1.6rem;
-    }
+/* ── toolbar ── */
+.toolbar{display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;}
+.search-wrap{position:relative;flex:1;min-width:160px;}
+.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:15px;height:15px;stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;}
+.search-input{
+  width:100%;height:42px;padding:0 .8rem 0 2.1rem;
+  border:1px solid var(--border);border-radius:var(--rs);
+  font-size:.88rem;color:var(--text);background:var(--surface);outline:none;
+  transition:border .15s;
+}
+.search-input:focus{border-color:var(--accent);}
+.icon-btn{
+  width:42px;height:42px;border:1px solid var(--border);border-radius:var(--rs);
+  background:var(--surface);display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:background .15s;flex-shrink:0;position:relative;
+}
+.icon-btn:hover{background:var(--surface2);}
+.icon-btn svg{width:16px;height:16px;stroke:var(--text2);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.f-badge{
+  position:absolute;top:-5px;right:-5px;width:17px;height:17px;border-radius:50%;
+  background:var(--accent);color:#fff;font-size:9px;font-weight:800;
+  display:none;align-items:center;justify-content:center;
+}
+.new-btn{
+  height:42px;padding:0 1rem;background:var(--accent);color:#fff;border:none;
+  border-radius:var(--rs);font-size:.88rem;font-weight:700;cursor:pointer;
+  display:flex;align-items:center;gap:.3rem;transition:background .15s;white-space:nowrap;
+}
+.new-btn:hover{background:var(--accent2);}
+.new-btn svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:2.5;stroke-linecap:round;}
 
-    .subtitle {
-      color: var(--muted);
-      margin-bottom: 16px;
-    }
+/* ── stats ── */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1rem;}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:.85rem 1rem;}
+.stat-label{font-size:.72rem;color:var(--text2);margin-bottom:.2rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;}
+.stat-value{font-size:1.5rem;font-weight:800;}
 
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-      margin-bottom: 16px;
-    }
+/* ── cards ── */
+.card-list{display:flex;flex-direction:column;gap:.5rem;}
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:.9rem 1rem;cursor:pointer;transition:border-color .15s,transform .1s;
+  display:flex;justify-content:space-between;gap:.75rem;align-items:flex-start;
+}
+.card:hover{border-color:var(--accent);}
+.card:active{transform:scale(.99);}
+.card-left{flex:1;min-width:0;}
+.name-row{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;}
+.c-name{font-weight:700;font-size:.95rem;}
+.c-phone{font-size:.78rem;color:var(--text2);}
+.c-sub{font-size:.81rem;color:var(--text2);margin-top:.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.c-meta{display:flex;align-items:center;gap:.4rem;margin-top:.5rem;flex-wrap:wrap;}
+.c-date{font-size:.75rem;color:var(--text3);}
+.c-right{text-align:right;flex-shrink:0;}
+.c-price{font-size:.9rem;font-weight:700;}
+.c-profit{font-size:.76rem;}
+.pos{color:var(--green);}
+.neg{color:var(--red);}
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
+/* ── status badge ── */
+.sb{display:inline-block;padding:2px 8px;border-radius:99px;font-size:.7rem;font-weight:700;}
+.s-pending   {background:#fef3cd;color:#7d5a00;}
+.s-repairing {background:#d1ecf1;color:#0c5460;}
+.s-done      {background:#d4edda;color:#155724;}
+.s-delivered {background:#e2e3e5;color:#383d41;}
+.s-cancelled {background:#f8d7da;color:#721c24;}
 
-    .grid-4 {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 10px;
-    }
+.empty{text-align:center;padding:3rem 1rem;color:var(--text2);}
+.loading{text-align:center;padding:3rem 1rem;color:var(--text3);font-size:.9rem;}
 
-    label {
-      display: block;
-      font-size: .9rem;
-      margin-bottom: 4px;
-      color: #374151;
-    }
+/* ── FAB ── */
+.fab{
+  position:fixed;bottom:1.5rem;right:1.2rem;width:50px;height:50px;
+  border-radius:50%;background:var(--accent);color:#fff;border:none;
+  font-size:1.5rem;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.16);
+  transition:background .15s,transform .1s;z-index:50;
+}
+.fab:hover{background:var(--accent2);}
+.fab:active{transform:scale(.95);}
 
-    input, select, button {
-      width: 100%;
-      min-height: 38px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 10px;
-      font-size: .95rem;
-    }
+/* ── filter drawer ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;}
+.overlay.open{display:block;}
+.drawer{
+  position:fixed;bottom:0;left:0;right:0;background:var(--surface);
+  border-radius:18px 18px 0 0;padding:1.25rem 1.25rem 2.5rem;z-index:201;
+  transform:translateY(100%);transition:transform .25s ease;max-height:85vh;overflow-y:auto;
+}
+.drawer.open{transform:translateY(0);}
+.drawer-title{font-size:1rem;font-weight:800;margin-bottom:1.1rem;}
+.frow{margin-bottom:.85rem;}
+.frow label{display:block;font-size:.78rem;font-weight:700;color:var(--text2);margin-bottom:.3rem;}
+.frow select,.frow input[type=date]{
+  width:100%;padding:.5rem .7rem;border:1px solid var(--border);
+  border-radius:var(--rs);font-size:.88rem;color:var(--text);background:var(--surface);outline:none;
+}
+.date-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;}
+.clear-btn{
+  width:100%;padding:.6rem;border:1px solid var(--border);border-radius:var(--rs);
+  background:var(--surface);font-size:.88rem;color:var(--text2);cursor:pointer;margin-top:.4rem;
+}
+.clear-btn:hover{background:var(--surface2);}
 
-    button {
-      cursor: pointer;
-      border: none;
-      background: var(--brand);
-      color: #fff;
-      font-weight: 600;
-      transition: background .15s ease;
-    }
+/* ── modal ── */
+.modal-wrap{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;
+  align-items:flex-end;justify-content:center;padding:0;
+}
+@media(min-width:520px){
+  .modal-wrap{align-items:center;padding:1rem;}
+  .modal{border-radius:var(--r) !important;max-height:90vh !important;}
+}
+.modal-wrap.open{display:flex;}
+.modal{
+  background:var(--surface);width:100%;max-width:500px;
+  border-radius:18px 18px 0 0;max-height:92vh;overflow-y:auto;padding:1.25rem 1.25rem 2rem;
+}
+.mhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.1rem;}
+.mtitle{font-size:1.05rem;font-weight:800;}
+.mclose{background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text2);line-height:1;padding:.2rem;}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;}
+.fgrid .full{grid-column:1/-1;}
+.ff label{display:block;font-size:.78rem;font-weight:700;color:var(--text2);margin-bottom:.28rem;}
+.ff input,.ff select{
+  width:100%;padding:.52rem .7rem;border:1px solid var(--border);
+  border-radius:var(--rs);font-size:.88rem;color:var(--text);background:var(--surface);
+  outline:none;transition:border .15s;
+}
+.ff input:focus,.ff select:focus{border-color:var(--accent);}
+.mactions{display:flex;gap:.6rem;margin-top:1.1rem;}
+.btn-save{
+  flex:1;padding:.65rem;background:var(--accent);color:#fff;border:none;
+  border-radius:var(--rs);font-size:.9rem;font-weight:700;cursor:pointer;
+}
+.btn-save:hover{background:var(--accent2);}
+.btn-del{
+  padding:.65rem .9rem;background:none;color:var(--red);
+  border:1px solid var(--red);border-radius:var(--rs);font-size:.9rem;cursor:pointer;
+}
+.btn-del:hover{background:#fdecea;}
+.note{font-size:.78rem;color:var(--text3);margin-top:.5rem;text-align:center;}
 
-    button:hover { background: var(--brand-dark); }
+/* ── toast ── */
+#toasts{position:fixed;bottom:5rem;left:50%;transform:translateX(-50%);z-index:999;display:flex;flex-direction:column;gap:.4rem;align-items:center;pointer-events:none;}
+.toast{
+  background:#1c1a17;color:#fff;padding:.5rem 1.1rem;border-radius:99px;
+  font-size:.85rem;font-weight:600;animation:fup .22s ease;white-space:nowrap;
+}
+.toast.err{background:var(--red);}
+@keyframes fup{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
 
-    .row {
-      display: flex;
-      align-items: end;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .row > * { flex: 1; }
-    .fit { flex: 0 0 auto; width: auto; }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.92rem;
-    }
-
-    th, td {
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-      padding: 10px 8px;
-      vertical-align: top;
-    }
-
-    th { font-size: 0.82rem; color: var(--muted); }
-
-    .status {
-      display: inline-block;
-      padding: 4px 8px;
-      border-radius: 999px;
-      font-size: .78rem;
-      font-weight: 700;
-    }
-
-    .pending { background: #fef3c7; color: #92400e; }
-    .done { background: #dcfce7; color: #166534; }
-    .picked { background: #dbeafe; color: #1d4ed8; }
-
-    .danger { background: var(--danger); }
-    .danger:hover { background: #991b1b; }
-
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-top: 10px;
-    }
-
-    .stat {
-      background: #f9fafb;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px;
-    }
-
-    .stat small { color: var(--muted); }
-    .stat strong { display: block; margin-top: 4px; font-size: 1.15rem; }
-
-    .empty {
-      text-align: center;
-      color: var(--muted);
-      padding: 22px 8px;
-    }
-
-    @media (max-width: 760px) {
-      .grid, .grid-4, .stats { grid-template-columns: 1fr; }
-      table { display: block; overflow: auto; }
-    }
-  </style>
+/* ── info banner ── */
+.banner{
+  background:var(--accent-bg);border:1px solid var(--accent);border-radius:var(--r);
+  padding:.75rem 1rem;margin-bottom:1rem;font-size:.82rem;color:var(--accent2);
+  display:flex;gap:.5rem;align-items:flex-start;line-height:1.5;
+}
+</style>
 </head>
 <body>
-  <div class="container">
-    <h1>手機維修客戶紀錄</h1>
-    <div class="subtitle">本頁為可直接開啟使用的單檔版（資料儲存在瀏覽器 localStorage）。</div>
 
-    <section class="card">
-      <h3>新增維修單</h3>
-      <div class="grid-4">
-        <div>
-          <label for="customer">客戶名稱</label>
-          <input id="customer" placeholder="王小明" />
-        </div>
-        <div>
-          <label for="phone">電話</label>
-          <input id="phone" placeholder="09xxxxxxxx" />
-        </div>
-        <div>
-          <label for="brand">品牌</label>
-          <select id="brand">
-            <option>Apple</option>
-            <option>Samsung</option>
-            <option>OPPO</option>
-            <option>Vivo</option>
-            <option>ASUS</option>
-            <option>Sony</option>
-            <option>Other</option>
-          </select>
-        </div>
-        <div>
-          <label for="model">型號</label>
-          <input id="model" placeholder="iPhone 13" />
-        </div>
-        <div>
-          <label for="repairItem">維修項目</label>
-          <input id="repairItem" placeholder="換電池" />
-        </div>
-        <div>
-          <label for="repairDate">維修日期</label>
-          <input id="repairDate" type="date" />
-        </div>
-        <div>
-          <label for="status">狀態</label>
-          <select id="status">
-            <option value="pending">待維修</option>
-            <option value="done">已完成</option>
-            <option value="picked">已取件</option>
-          </select>
-        </div>
-        <div>
-          <label for="price">售價</label>
-          <input id="price" type="number" min="0" step="1" placeholder="0" />
-        </div>
-        <div>
-          <label for="cost">成本</label>
-          <input id="cost" type="number" min="0" step="1" placeholder="0" />
-        </div>
-      </div>
-      <div style="margin-top: 12px;">
-        <button id="addBtn">新增紀錄</button>
-      </div>
-   </section>
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+    </div>
+    維修管理系統
+  </div>
+  <div style="display:flex;align-items:center;gap:.6rem">
+    <span class="trial-badge">試用版</span>
+    <button class="new-btn" onclick="openForm()">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      新增
+    </button>
+  </div>
+</header>
 
-    <section class="card">
-      <h3>搜尋與篩選</h3>
-      <div class="row">
-        <div>
-          <label for="search">關鍵字</label>
-          <input id="search" placeholder="搜尋姓名、電話、維修項目、型號" />
-
-            <div className="text-right">
-              <div>{formatCurrency(Number(r.price))}</div>
-              <div>{formatCurrency(profit)}</div>
-            </div>
-          </div>
-        </div>
-       <div>
-          <label for="filterStatus">狀態</label>
-          <select id="filterStatus">
-            <option value="all">全部</option>
-            <option value="pending">待維修</option>
-            <option value="done">已完成</option>
-            <option value="picked">已取件</option>
-          </select>
-        </div>
-        <button id="clearFilter" class="fit">清除篩選</button>
-      </div>
-<div class="stats">
-        <div class="stat"><small>筆數</small><strong id="countStat">0</strong></div>
-        <div class="stat"><small>總營收</small><strong id="revenueStat">$0</strong></div>
-        <div class="stat"><small>總利潤</small><strong id="profitStat">$0</strong></div>
-      </div>
-    </section>
-
-    <section class="card">
-      <h3>維修清單</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>客戶</th>
-            <th>品牌/型號</th>
-            <th>維修項目</th>
-            <th>日期</th>
-            <th>狀態</th>
-            <th>價格 / 成本 / 利潤</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-      </table>
-      <div id="empty" class="empty" hidden>目前沒有符合條件的資料。</div>
-    </section>
+<main>
+  <div class="banner">
+    💡 這是試用版，資料儲存在這台設備的瀏覽器中。備份功能可將資料匯出成 Excel 保存。
   </div>
 
-  <script>
-    const KEY = "phone_repair_records_v1";
-    const $ = (id) => document.getElementById(id);
+  <div class="toolbar">
+    <div class="search-wrap">
+      <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input class="search-input" id="q" placeholder="搜尋姓名、電話、維修項目…" oninput="render()"/>
+    </div>
+    <div class="icon-btn" onclick="openDrawer()" title="篩選">
+      <svg viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+      <span class="f-badge" id="fbadge">0</span>
+    </div>
+    <div class="icon-btn" onclick="backup()" title="備份成 Excel">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    </div>
+    <div class="icon-btn" onclick="document.getElementById('fi').click()" title="從 Excel 還原">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    </div>
+    <input id="fi" type="file" accept=".xlsx" style="display:none" onchange="restore(event)"/>
+  </div>
 
-    const state = {
-      rows: JSON.parse(localStorage.getItem(KEY) || "[]")
-    };
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">筆數</div>
+      <div class="stat-value" id="scount">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">總利潤</div>
+      <div class="stat-value" id="sprofit">NT$0</div>
+    </div>
+  </div>
 
-    const fmt = (n) => `$${Number(n || 0).toLocaleString("zh-TW")}`;
-    const statusMap = {
-      pending: "待維修",
-      done: "已完成",
-      picked: "已取件"
-    };
+  <div id="list"></div>
+</main>
 
-    function save() {
-      localStorage.setItem(KEY, JSON.stringify(state.rows));
+<button class="fab" onclick="openForm()">＋</button>
+
+<!-- filter drawer -->
+<div class="overlay" id="ov" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-title">篩選</div>
+  <div class="frow">
+    <label>品牌</label>
+    <select id="fb" onchange="render()">
+      <option value="">全部品牌</option>
+      <option value="apple">Apple</option>
+      <option value="samsung">Samsung</option>
+      <option value="oppo">OPPO</option>
+      <option value="xiaomi">小米</option>
+      <option value="other">其他品牌</option>
+    </select>
+  </div>
+  <div class="frow">
+    <label>狀態</label>
+    <select id="fs" onchange="render()">
+      <option value="">全部狀態</option>
+      <option value="pending">待維修</option>
+      <option value="repairing">維修中</option>
+      <option value="done">已完成</option>
+      <option value="delivered">已取件</option>
+      <option value="cancelled">已取消</option>
+    </select>
+  </div>
+  <div class="frow">
+    <div class="date-grid">
+      <div>
+        <label>起始日期</label>
+        <input type="date" id="ffrom" onchange="render()"/>
+      </div>
+      <div>
+        <label>結束日期</label>
+        <input type="date" id="fto" onchange="render()"/>
+      </div>
+    </div>
+  </div>
+  <button class="clear-btn" onclick="clearF()">✕ 清除篩選</button>
+</div>
+
+<!-- form modal -->
+<div class="modal-wrap" id="modal">
+  <div class="modal">
+    <div class="mhead">
+      <div class="mtitle" id="mtitle">新增維修</div>
+      <button class="mclose" onclick="closeForm()">✕</button>
+    </div>
+    <input type="hidden" id="fid"/>
+    <div class="fgrid">
+      <div class="ff full"><label>客戶姓名 *</label><input id="fn" placeholder="王小明"/></div>
+      <div class="ff"><label>電話 *</label><input id="fph" placeholder="0912-345-678"/></div>
+      <div class="ff"><label>品牌</label>
+        <select id="fbr">
+          <option value="apple">Apple</option>
+          <option value="samsung">Samsung</option>
+          <option value="oppo">OPPO</option>
+          <option value="xiaomi">小米</option>
+          <option value="other">其他品牌</option>
+        </select>
+      </div>
+      <div class="ff"><label>型號</label><input id="fmo" placeholder="iPhone 15 Pro"/></div>
+      <div class="ff full"><label>維修項目 *</label><input id="fit" placeholder="換螢幕、換電池…"/></div>
+      <div class="ff"><label>維修日期</label><input type="date" id="fdt"/></div>
+      <div class="ff"><label>狀態</label>
+        <select id="fst">
+          <option value="pending">待維修</option>
+          <option value="repairing">維修中</option>
+          <option value="done">已完成</option>
+          <option value="delivered">已取件</option>
+          <option value="cancelled">已取消</option>
+        </select>
+      </div>
+      <div class="ff"><label>售價（NT$）</label><input type="number" id="fpr" placeholder="2500" min="0"/></div>
+      <div class="ff"><label>成本（NT$）</label><input type="number" id="fco" placeholder="800" min="0"/></div>
+    </div>
+    <div class="mactions">
+      <button class="btn-del" id="bdel" style="display:none" onclick="delRepair()">刪除</button>
+      <button class="btn-save" onclick="save()">儲存</button>
+    </div>
+    <p class="note">* 為必填欄位</p>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+const BRAND = {apple:'Apple',samsung:'Samsung',oppo:'OPPO',xiaomi:'小米',other:'其他品牌'};
+const STATUS = {pending:'待維修',repairing:'維修中',done:'已完成',delivered:'已取件',cancelled:'已取消'};
+const SCLS   = {pending:'s-pending',repairing:'s-repairing',done:'s-done',delivered:'s-delivered',cancelled:'s-cancelled'};
+const BRAND_R  = Object.fromEntries(Object.entries(BRAND).map(([k,v])=>[v,k]));
+const STATUS_R = Object.fromEntries(Object.entries(STATUS).map(([k,v])=>[v,k]));
+const KEY = 'repairs_v1';
+
+let data = [];
+
+function load(){
+  try{ data = JSON.parse(localStorage.getItem(KEY)||'[]'); }
+  catch{ data=[]; }
+  render();
+}
+function save_data(){
+  localStorage.setItem(KEY, JSON.stringify(data));
+}
+
+function filtered(){
+  const q   = document.getElementById('q').value.trim().toLowerCase();
+  const fb  = document.getElementById('fb').value;
+  const fs  = document.getElementById('fs').value;
+  const ffr = document.getElementById('ffrom').value;
+  const fto = document.getElementById('fto').value;
+  return data.filter(r=>{
+    if(fb  && r.brand  !== fb)  return false;
+    if(fs  && r.status !== fs)  return false;
+    if(ffr && r.date   <  ffr)  return false;
+    if(fto && r.date   >  fto)  return false;
+    if(q){
+      const h = `${r.name} ${r.phone} ${r.item} ${r.model||''}`.toLowerCase();
+      if(!h.includes(q)) return false;
     }
+    return true;
+  });
+}
 
-    function getFilteredRows() {
-      const q = $("search").value.trim().toLowerCase();
-      const filterStatus = $("filterStatus").value;
+function render(){
+  const list = filtered();
+  const profit = list.reduce((s,r)=>s+(Number(r.price)-Number(r.cost)),0);
+  document.getElementById('scount').textContent = list.length;
+  const pe = document.getElementById('sprofit');
+  pe.textContent = fmt(profit);
+  pe.className = 'stat-value '+(profit>=0?'pos':'neg');
+  updateBadge();
 
-      return state.rows.filter((r) => {
-        if (filterStatus !== "all" && r.status !== filterStatus) return false;
-        if (!q) return true;
-        const bag = `${r.customer} ${r.phone} ${r.model} ${r.repairItem}`.toLowerCase();
-        return bag.includes(q);
-      });
-    }
+  const el = document.getElementById('list');
+  if(!list.length){
+    el.innerHTML = '<div class="empty">尚無記錄<br><span style="font-size:.82rem;color:var(--text3)">點右下角 ＋ 新增第一筆</span></div>';
+    return;
+  }
+  el.innerHTML = '<div class="card-list">'+list.map(r=>{
+    const p = Number(r.price)-Number(r.cost);
+    return `<div class="card" onclick="openForm('${r.id}')">
+      <div class="card-left">
+        <div class="name-row"><span class="c-name">${esc(r.name)}</span><span class="c-phone">${esc(r.phone)}</span></div>
+        <div class="c-sub">${BRAND[r.brand]||r.brand}${r.model?` · ${esc(r.model)}`:''} · ${esc(r.item)}</div>
+        <div class="c-meta">
+          <span class="sb ${SCLS[r.status]||''}">${STATUS[r.status]||r.status}</span>
+          <span class="c-date">${r.date||''}</span>
+        </div>
+      </div>
+      <div class="c-right">
+        <div class="c-price">${fmt(Number(r.price))}</div>
+        <div class="c-profit ${p>=0?'pos':'neg'}">${p>=0?'+':''}${fmt(p)}</div>
+      </div>
+    </div>`;
+  }).join('')+'</div>';
+}
 
-    function render() {
-      const rows = getFilteredRows();
-      const tbody = $("tbody");
-      tbody.innerHTML = "";
+function updateBadge(){
+  const n = ['fb','fs','ffrom','fto'].filter(id=>document.getElementById(id).value).length;
+  const b = document.getElementById('fbadge');
+  b.textContent = n; b.style.display = n?'flex':'none';
+}
 
-      let revenue = 0;
-      let profit = 0;
+// ── drawer ──
+function openDrawer(){ document.getElementById('ov').classList.add('open'); document.getElementById('drawer').classList.add('open'); }
+function closeDrawer(){ document.getElementById('ov').classList.remove('open'); document.getElementById('drawer').classList.remove('open'); }
+function clearF(){ ['fb','fs','ffrom','fto'].forEach(id=>document.getElementById(id).value=''); render(); }
 
-      rows.forEach((r) => {
-        revenue += Number(r.price || 0);
-        profit += Number(r.price || 0) - Number(r.cost || 0);
+// ── form ──
+function openForm(id){
+  document.getElementById('modal').classList.add('open');
+  if(!id){
+    document.getElementById('mtitle').textContent='新增維修';
+    document.getElementById('fid').value='';
+    document.getElementById('bdel').style.display='none';
+    document.getElementById('fn').value='';
+    document.getElementById('fph').value='';
+    document.getElementById('fmo').value='';
+    document.getElementById('fit').value='';
+    document.getElementById('fbr').value='apple';
+    document.getElementById('fst').value='pending';
+    document.getElementById('fpr').value='';
+    document.getElementById('fco').value='';
+    document.getElementById('fdt').value=today();
+  } else {
+    const r = data.find(x=>x.id===id); if(!r) return;
+    document.getElementById('mtitle').textContent='編輯維修';
+    document.getElementById('fid').value=id;
+    document.getElementById('bdel').style.display='block';
+    document.getElementById('fn').value=r.name||'';
+    document.getElementById('fph').value=r.phone||'';
+    document.getElementById('fmo').value=r.model||'';
+    document.getElementById('fit').value=r.item||'';
+    document.getElementById('fbr').value=r.brand||'apple';
+    document.getElementById('fst').value=r.status||'pending';
+    document.getElementById('fpr').value=r.price||'';
+    document.getElementById('fco').value=r.cost||'';
+    document.getElementById('fdt').value=r.date||'';
+  }
+}
+function closeForm(){ document.getElementById('modal').classList.remove('open'); }
 
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td><strong>${escapeHtml(r.customer)}</strong><br><small>${escapeHtml(r.phone)}</small></td>
-          <td>${escapeHtml(r.brand)}<br><small>${escapeHtml(r.model || "-")}</small></td>
-          <td>${escapeHtml(r.repairItem)}</td>
-          <td>${escapeHtml(r.repairDate || "-")}</td>
-          <td><span class="status ${r.status}">${statusMap[r.status] || "-"}</span></td>
-          <td>${fmt(r.price)} / ${fmt(r.cost)} / <strong>${fmt(Number(r.price) - Number(r.cost))}</strong></td>
-          <td><button class="danger" data-id="${r.id}">刪除</button></td>
-        `;
-        tbody.appendChild(tr);
-      });
+function save(){
+  const name  = document.getElementById('fn').value.trim();
+  const phone = document.getElementById('fph').value.trim();
+  const item  = document.getElementById('fit').value.trim();
+  if(!name||!phone||!item){ toast('請填寫姓名、電話及維修項目',true); return; }
+  const id = document.getElementById('fid').value;
+  const payload = {
+    id: id||uid(),
+    name, phone, item,
+    model:  document.getElementById('fmo').value.trim()||'',
+    brand:  document.getElementById('fbr').value,
+    status: document.getElementById('fst').value,
+    price:  Number(document.getElementById('fpr').value)||0,
+    cost:   Number(document.getElementById('fco').value)||0,
+    date:   document.getElementById('fdt').value,
+    created: id ? (data.find(x=>x.id===id)||{}).created||Date.now() : Date.now(),
+  };
+  if(id){ const i=data.findIndex(x=>x.id===id); if(i>=0) data[i]=payload; }
+  else   { data.unshift(payload); }
+  save_data(); render(); closeForm();
+  toast(id?'已儲存':'新增成功 ✓');
+}
 
-      $("countStat").textContent = String(rows.length);
-      $("revenueStat").textContent = fmt(revenue);
-      $("profitStat").textContent = fmt(profit);
-      $("empty").hidden = rows.length > 0;
-    }
+function delRepair(){
+  const id = document.getElementById('fid').value;
+  if(!id||!confirm('確定刪除此筆記錄？')) return;
+  data = data.filter(x=>x.id!==id);
+  save_data(); render(); closeForm(); toast('已刪除');
+}
 
-    function escapeHtml(value) {
-      return String(value ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
+// ── backup / restore ──
+function backup(){
+  const list = filtered();
+  if(!list.length){ toast('沒有資料可備份',true); return; }
+  const rows = list.map(r=>({
+    客戶名稱: r.name, 電話: r.phone,
+    品牌: BRAND[r.brand]||r.brand, 型號: r.model||'',
+    維修項目: r.item, 維修日期: r.date,
+    狀態: STATUS[r.status]||r.status,
+    售價: Number(r.price), 成本: Number(r.cost),
+    利潤: Number(r.price)-Number(r.cost),
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[12,14,10,14,18,12,10,10,10,10].map(wch=>({wch}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'維修備份');
+  XLSX.writeFile(wb,`維修備份_${today()}.xlsx`);
+  toast('備份成功！Excel 已下載');
+}
 
-    function addRecord() {
-      const record = {
-        id: crypto.randomUUID(),
-        customer: $("customer").value.trim(),
-        phone: $("phone").value.trim(),
-        brand: $("brand").value,
-        model: $("model").value.trim(),
-        repairItem: $("repairItem").value.trim(),
-        repairDate: $("repairDate").value,
-        status: $("status").value,
-        price: Number($("price").value || 0),
-        cost: Number($("cost").value || 0)
-      };
-
-      if (!record.customer || !record.phone || !record.repairItem) {
-        alert("請至少填寫：客戶名稱、電話、維修項目");
-        return;
-      }
-
-      state.rows.unshift(record);
-      save();
-      ["customer", "phone", "model", "repairItem", "price", "cost"].forEach((id) => ($(id).value = ""));
-      render();
-    }
-
-    function removeRecord(id) {
-      if (!confirm("確定要刪除這筆資料嗎？")) return;
-      state.rows = state.rows.filter((r) => r.id !== id);
-      save();
-      render();
-    }
-
-    $("addBtn").addEventListener("click", addRecord);
-    $("search").addEventListener("input", render);
-    $("filterStatus").addEventListener("change", render);
-    $("clearFilter").addEventListener("click", () => {
-      $("search").value = "";
-      $("filterStatus").value = "all";
-      render();
+async function restore(e){
+  const file = e.target.files[0]; e.target.value='';
+  if(!file) return;
+  const buf = await file.arrayBuffer();
+  const wb  = XLSX.read(buf,{type:'array'});
+  const ws  = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws);
+  let ok=0,fail=0;
+  for(const row of rows){
+    const name  = String(row['客戶名稱']??'').trim();
+    const phone = String(row['電話']??'').trim();
+    const price = Number(row['售價']);
+    const cost  = Number(row['成本']);
+    if(!name||!phone||isNaN(price)||isNaN(cost)){fail++;continue;}
+    data.unshift({
+      id: uid(), name, phone,
+      brand:  BRAND_R[String(row['品牌']??'').trim()]||'other',
+      status: STATUS_R[String(row['狀態']??'').trim()]||'pending',
+      model:  String(row['型號']??'').trim(),
+      item:   String(row['維修項目']??'').trim(),
+      date:   String(row['維修日期']??'').trim(),
+      price, cost, created: Date.now(),
     });
+    ok++;
+  }
+  save_data(); render();
+  toast(`還原 ${ok} 筆，失敗 ${fail} 筆`);
+}
 
-    $("tbody").addEventListener("click", (e) => {
-      const btn = e.target.closest("button[data-id]");
-      if (!btn) return;
-      removeRecord(btn.dataset.id);
-    });
+// ── utils ──
+function fmt(n){ return 'NT$'+Math.round(n).toLocaleString('zh-TW'); }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function today(){ return new Date().toISOString().slice(0,10); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function toast(msg,err=false){
+  const el=document.createElement('div');
+  el.className='toast'+(err?' err':'');
+  el.textContent=msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(()=>el.remove(),3000);
+}
 
-    render();
-  </script>
+load();
+</script>
 </body>
 </html>
