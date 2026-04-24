@@ -1,267 +1,391 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Plus, Search, Filter, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { supabase } from "@/integrations/supabase/client";
-import * as XLSX from "xlsx";
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phone Repair Customer Record</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7fb;
+      --card: #fff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --brand: #2563eb;
+      --brand-dark: #1e40af;
+      --border: #e5e7eb;
+      --ok: #16a34a;
+      --warn: #d97706;
+      --danger: #dc2626;
+    }
 
-import {
-BRANDS, STATUSES, Repair, Status, Brand, formatCurrency, calcProfit,
-BRAND_LABELS, STATUS_LABELS,
-} from "@/lib/repairs";
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
 
-import { StatusBadge } from "@/components/StatusBadge";
-import { AppHeader } from "@/components/AppHeader";
-import { toast } from "sonner";
+    .container {
+      width: min(980px, 94vw);
+      margin: 24px auto;
+    }
 
-const Index = () => {
-const navigate = useNavigate();
-const [repairs, setRepairs] = useState<Repair[]>([]);
-const [loading, setLoading] = useState(true);
-const [q, setQ] = useState("");
-const [brand, setBrand] = useState<Brand | "all">("all");
-const [status, setStatus] = useState<Status | "all">("all");
-const [from, setFrom] = useState("");
-const [to, setTo] = useState("");
+    h1 {
+      margin: 0 0 6px;
+      font-size: 1.6rem;
+    }
 
-const load = async () => {
-setLoading(true);
-const { data, error } = await supabase
-.from("repairs")
-.select("*")
-.eq("is_deleted", false)
-.order("repair_date", { ascending: false })
-.order("created_at", { ascending: false });
+    .subtitle {
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
 
-```
-if (error) toast.error(error.message);
-else setRepairs((data ?? []) as Repair[]);
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      margin-bottom: 16px;
+    }
 
-setLoading(false);
-```
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
 
-};
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
 
-useEffect(() => { load(); }, []);
+    label {
+      display: block;
+      font-size: .9rem;
+      margin-bottom: 4px;
+      color: #374151;
+    }
 
-const filtered = useMemo(() => {
-const term = q.trim().toLowerCase();
-return repairs.filter((r) => {
-if (brand !== "all" && r.brand !== brand) return false;
-if (status !== "all" && r.status !== status) return false;
-if (from && r.repair_date < from) return false;
-if (to && r.repair_date > to) return false;
+    input, select, button {
+      width: 100%;
+      min-height: 38px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: .95rem;
+    }
 
-```
-  if (term) {
-    const hay = `${r.customer_name} ${r.phone} ${r.repair_item} ${r.model ?? ""}`.toLowerCase();
-    if (!hay.includes(term)) return false;
-  }
-  return true;
-});
-```
+    button {
+      cursor: pointer;
+      border: none;
+      background: var(--brand);
+      color: #fff;
+      font-weight: 600;
+      transition: background .15s ease;
+    }
 
-}, [repairs, q, brand, status, from, to]);
+    button:hover { background: var(--brand-dark); }
 
-const stats = useMemo(() => {
-const totalProfit = filtered.reduce(
-(s, r) => s + calcProfit(Number(r.price), Number(r.cost)),
-0
-);
-return { count: filtered.length, totalProfit };
-}, [filtered]);
+    .row {
+      display: flex;
+      align-items: end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
 
-const clearFilters = () => {
-setBrand("all");
-setStatus("all");
-setFrom("");
-setTo("");
-};
+    .row > * { flex: 1; }
+    .fit { flex: 0 0 auto; width: auto; }
 
-// 📤 匯出
-const exportToExcel = () => {
-const data = filtered.map((r) => ({
-客戶名稱: r.customer_name,
-電話: r.phone,
-品牌: BRAND_LABELS[r.brand],
-型號: r.model,
-維修項目: r.repair_item,
-維修日期: r.repair_date,
-狀態: STATUS_LABELS[r.status],
-售價: Number(r.price),
-成本: Number(r.cost),
-利潤: Number(r.price) - Number(r.cost),
-}));
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+    }
 
-```
-const ws = XLSX.utils.json_to_sheet(data);
-const wb = XLSX.utils.book_new();
-XLSX.utils.book_append_sheet(wb, ws, "維修資料");
-XLSX.writeFile(wb, "維修資料.xlsx");
-```
+    th, td {
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      padding: 10px 8px;
+      vertical-align: top;
+    }
 
-};
+    th { font-size: 0.82rem; color: var(--muted); }
 
-// 📥 匯入
-const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-const file = e.target.files?.[0];
-if (!file) return;
+    .status {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: .78rem;
+      font-weight: 700;
+    }
 
-```
-const data = await file.arrayBuffer();
-const workbook = XLSX.read(data);
-const sheet = workbook.Sheets[workbook.SheetNames[0]];
-const json: any[] = XLSX.utils.sheet_to_json(sheet);
+    .pending { background: #fef3c7; color: #92400e; }
+    .done { background: #dcfce7; color: #166534; }
+    .picked { background: #dbeafe; color: #1d4ed8; }
 
-const newData = json.map((row) => ({
-  customer_name: row["客戶名稱"] || "",
-  phone: row["電話"] || "",
-  brand: "other",
-  model: row["型號"] || "",
-  repair_item: row["維修項目"] || "",
-  repair_date: row["維修日期"] || "",
-  status: "pending",
-  price: Number(row["售價"] || 0),
-  cost: Number(row["成本"] || 0),
-  is_deleted: false,
-}));
+    .danger { background: var(--danger); }
+    .danger:hover { background: #991b1b; }
 
-const { error } = await supabase.from("repairs").insert(newData);
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
 
-if (error) {
-  toast.error("匯入失敗：" + error.message);
-} else {
-  toast.success("匯入成功");
-  load();
-}
-```
+    .stat {
+      background: #f9fafb;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+    }
 
-};
+    .stat small { color: var(--muted); }
+    .stat strong { display: block; margin-top: 4px; font-size: 1.15rem; }
 
-return ( <div className="min-h-screen bg-background pb-24">
-<AppHeader
-title="維修記錄"
-right={ <Link to="/repairs/new"> <Button size="sm"> <Plus className="h-4 w-4 mr-1" />新增 </Button> </Link>
-}
-/>
+    .empty {
+      text-align: center;
+      color: var(--muted);
+      padding: 22px 8px;
+    }
 
-```
-  <main className="mx-auto max-w-3xl px-4 py-4 space-y-4">
+    @media (max-width: 760px) {
+      .grid, .grid-4, .stats { grid-template-columns: 1fr; }
+      table { display: block; overflow: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>手機維修客戶紀錄</h1>
+    <div class="subtitle">本頁為可直接開啟使用的單檔版（資料儲存在瀏覽器 localStorage）。</div>
 
-    {/* 🔍 搜尋 + 匯入匯出 */}
-    <div className="flex gap-2 flex-wrap">
-      <div className="relative flex-1">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="搜尋姓名、電話、項目…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          className="pl-9 h-11"
-        />
-      </div>
-
-      <Button variant="outline" onClick={exportToExcel}>
-        匯出
-      </Button>
-
-      <label className="h-11 px-4 border rounded-md flex items-center cursor-pointer text-sm">
-        匯入
-        <input
-          type="file"
-          accept=".xlsx, .xls"
-          onChange={handleImport}
-          className="hidden"
-        />
-      </label>
-
-      <Sheet>
-        <SheetTrigger asChild>
-          <Button variant="outline" size="icon" className="h-11 w-11">
-            <Filter className="h-4 w-4" />
-          </Button>
-        </SheetTrigger>
-
-        <SheetContent side="bottom">
-          <SheetHeader>
-            <SheetTitle>篩選</SheetTitle>
-          </SheetHeader>
-
-          <div className="space-y-4 py-4">
-
-            <Select value={brand} onValueChange={(v) => setBrand(v as any)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部品牌</SelectItem>
-                {BRANDS.map((b) => (
-                  <SelectItem key={b} value={b}>{BRAND_LABELS[b]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={status} onValueChange={(v) => setStatus(v as any)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部狀態</SelectItem>
-                {STATUSES.map((s) => (
-                  <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Button variant="outline" onClick={clearFilters}>
-              <X className="h-4 w-4 mr-1" />清除
-            </Button>
-
-          </div>
-        </SheetContent>
-      </Sheet>
-    </div>
-
-    {/* 📊 統計 */}
-    <div className="grid grid-cols-2 gap-3">
-      <div className="rounded-xl border p-3">
-        <div className="text-xs">筆數</div>
-        <div className="text-xl">{stats.count}</div>
-      </div>
-      <div className="rounded-xl border p-3">
-        <div className="text-xs">總利潤</div>
-        <div className="text-xl">{formatCurrency(stats.totalProfit)}</div>
-      </div>
-    </div>
-
-    {/* 📋 列表 */}
-    {filtered.map((r) => {
-      const profit = calcProfit(Number(r.price), Number(r.cost));
-
-      return (
-        <div
-          key={r.id}
-          onClick={() => navigate(`/repairs/${r.id}`)}
-          className="border rounded-xl p-4 cursor-pointer"
-        >
-          <div className="flex justify-between">
-            <div>
-              <div className="font-bold">{r.customer_name}</div>
-              <div className="text-sm">{r.phone}</div>
-              <div className="text-sm">{r.repair_item}</div>
-            </div>
-
-            <div className="text-right">
-              <div>{formatCurrency(Number(r.price))}</div>
-              <div>{formatCurrency(profit)}</div>
-            </div>
-          </div>
+    <section class="card">
+      <h3>新增維修單</h3>
+      <div class="grid-4">
+        <div>
+          <label for="customer">客戶名稱</label>
+          <input id="customer" placeholder="王小明" />
         </div>
-      );
-    })}
-  </main>
-</div>
-```
+        <div>
+          <label for="phone">電話</label>
+          <input id="phone" placeholder="09xxxxxxxx" />
+        </div>
+        <div>
+          <label for="brand">品牌</label>
+          <select id="brand">
+            <option>Apple</option>
+            <option>Samsung</option>
+            <option>OPPO</option>
+            <option>Vivo</option>
+            <option>ASUS</option>
+            <option>Sony</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div>
+          <label for="model">型號</label>
+          <input id="model" placeholder="iPhone 13" />
+        </div>
+        <div>
+          <label for="repairItem">維修項目</label>
+          <input id="repairItem" placeholder="換電池" />
+        </div>
+        <div>
+          <label for="repairDate">維修日期</label>
+          <input id="repairDate" type="date" />
+        </div>
+        <div>
+          <label for="status">狀態</label>
+          <select id="status">
+            <option value="pending">待維修</option>
+            <option value="done">已完成</option>
+            <option value="picked">已取件</option>
+          </select>
+        </div>
+        <div>
+          <label for="price">售價</label>
+          <input id="price" type="number" min="0" step="1" placeholder="0" />
+        </div>
+        <div>
+          <label for="cost">成本</label>
+          <input id="cost" type="number" min="0" step="1" placeholder="0" />
+        </div>
+      </div>
+      <div style="margin-top: 12px;">
+        <button id="addBtn">新增紀錄</button>
+      </div>
+    </section>
 
-);
-};
+    <section class="card">
+      <h3>搜尋與篩選</h3>
+      <div class="row">
+        <div>
+          <label for="search">關鍵字</label>
+          <input id="search" placeholder="搜尋姓名、電話、維修項目、型號" />
+        </div>
+        <div>
+          <label for="filterStatus">狀態</label>
+          <select id="filterStatus">
+            <option value="all">全部</option>
+            <option value="pending">待維修</option>
+            <option value="done">已完成</option>
+            <option value="picked">已取件</option>
+          </select>
+        </div>
+        <button id="clearFilter" class="fit">清除篩選</button>
+      </div>
 
-export default Index;
+      <div class="stats">
+        <div class="stat"><small>筆數</small><strong id="countStat">0</strong></div>
+        <div class="stat"><small>總營收</small><strong id="revenueStat">$0</strong></div>
+        <div class="stat"><small>總利潤</small><strong id="profitStat">$0</strong></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3>維修清單</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>客戶</th>
+            <th>品牌/型號</th>
+            <th>維修項目</th>
+            <th>日期</th>
+            <th>狀態</th>
+            <th>價格 / 成本 / 利潤</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div id="empty" class="empty" hidden>目前沒有符合條件的資料。</div>
+    </section>
+  </div>
+
+  <script>
+    const KEY = "phone_repair_records_v1";
+    const $ = (id) => document.getElementById(id);
+
+    const state = {
+      rows: JSON.parse(localStorage.getItem(KEY) || "[]")
+    };
+
+    const fmt = (n) => `$${Number(n || 0).toLocaleString("zh-TW")}`;
+    const statusMap = {
+      pending: "待維修",
+      done: "已完成",
+      picked: "已取件"
+    };
+
+    function save() {
+      localStorage.setItem(KEY, JSON.stringify(state.rows));
+    }
+
+    function getFilteredRows() {
+      const q = $("search").value.trim().toLowerCase();
+      const filterStatus = $("filterStatus").value;
+
+      return state.rows.filter((r) => {
+        if (filterStatus !== "all" && r.status !== filterStatus) return false;
+        if (!q) return true;
+        const bag = `${r.customer} ${r.phone} ${r.model} ${r.repairItem}`.toLowerCase();
+        return bag.includes(q);
+      });
+    }
+
+    function render() {
+      const rows = getFilteredRows();
+      const tbody = $("tbody");
+      tbody.innerHTML = "";
+
+      let revenue = 0;
+      let profit = 0;
+
+      rows.forEach((r) => {
+        revenue += Number(r.price || 0);
+        profit += Number(r.price || 0) - Number(r.cost || 0);
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><strong>${escapeHtml(r.customer)}</strong><br><small>${escapeHtml(r.phone)}</small></td>
+          <td>${escapeHtml(r.brand)}<br><small>${escapeHtml(r.model || "-")}</small></td>
+          <td>${escapeHtml(r.repairItem)}</td>
+          <td>${escapeHtml(r.repairDate || "-")}</td>
+          <td><span class="status ${r.status}">${statusMap[r.status] || "-"}</span></td>
+          <td>${fmt(r.price)} / ${fmt(r.cost)} / <strong>${fmt(Number(r.price) - Number(r.cost))}</strong></td>
+          <td><button class="danger" data-id="${r.id}">刪除</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      $("countStat").textContent = String(rows.length);
+      $("revenueStat").textContent = fmt(revenue);
+      $("profitStat").textContent = fmt(profit);
+      $("empty").hidden = rows.length > 0;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function addRecord() {
+      const record = {
+        id: crypto.randomUUID(),
+        customer: $("customer").value.trim(),
+        phone: $("phone").value.trim(),
+        brand: $("brand").value,
+        model: $("model").value.trim(),
+        repairItem: $("repairItem").value.trim(),
+        repairDate: $("repairDate").value,
+        status: $("status").value,
+        price: Number($("price").value || 0),
+        cost: Number($("cost").value || 0)
+      };
+
+      if (!record.customer || !record.phone || !record.repairItem) {
+        alert("請至少填寫：客戶名稱、電話、維修項目");
+        return;
+      }
+
+      state.rows.unshift(record);
+      save();
+      ["customer", "phone", "model", "repairItem", "price", "cost"].forEach((id) => ($(id).value = ""));
+      render();
+    }
+
+    function removeRecord(id) {
+      if (!confirm("確定要刪除這筆資料嗎？")) return;
+      state.rows = state.rows.filter((r) => r.id !== id);
+      save();
+      render();
+    }
+
+    $("addBtn").addEventListener("click", addRecord);
+    $("search").addEventListener("input", render);
+    $("filterStatus").addEventListener("change", render);
+    $("clearFilter").addEventListener("click", () => {
+      $("search").value = "";
+      $("filterStatus").value = "all";
+      render();
+    });
+
+    $("tbody").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-id]");
+      if (!btn) return;
+      removeRecord(btn.dataset.id);
+    });
+
+    render();
+  </script>
+</body>
+</html>
